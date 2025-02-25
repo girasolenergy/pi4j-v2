@@ -61,66 +61,10 @@ public class GpioDContext implements Closeable {
     }
 
     /**
-     * GpioDContext を初期化します。
-     * setChip() でチップが指定されていない場合は、デフォルトのチップが選択されます。
+     * Initializes the GpioDContext.
      */
     public synchronized void initialize() {
-        if (!BoardInfoHelper.runningOnRaspberryPi()) {
-            logger.warn("Can't initialize GpioD context, board model is unknown");
-            return;
-        }
-
-        // already initialized
-        if (this.gpioChip != null) {
-            logger.info("GpioD context already initialized with chip: {}", this.gpioChip.getName());
-            return;
-        }
-
-        long chipIterPtr = GpioD.chipIterNew();
-        GpioChip found = null;
-        try {
-            Long chipPtr;
-            while ((chipPtr = GpioD.chipIterNextNoClose(chipIterPtr)) != null) {
-                GpioChip chip = new GpioChip(chipPtr);
-                boolean useThisChip = false;
-
-                if (this.desiredChipName != null && !this.desiredChipName.isEmpty()) {
-                    // ユーザーがチップ名を指定している場合
-                    if (chip.getName().equals(this.desiredChipName)) {
-                        useThisChip = true;
-                    }
-                } else {
-                    // ユーザーがチップ名を指定していない場合、"pinctrl" を含むラベルを持つ最初のチップをデフォルトとして使用
-                    if (chip.getLabel().contains("pinctrl")) {
-                        useThisChip = true;
-                    }
-                }
-
-                if (useThisChip) {
-                    found = chip;
-                    break;
-                } else {
-                    GpioD.chipClose(chip.getCPointer());
-                }
-            }
-        } finally {
-            if (found != null) {
-                GpioD.chipIterFreeNoClose(chipIterPtr);
-            } else {
-                GpioD.chipIterFree(chipIterPtr);
-            }
-        }
-
-        if (found == null) {
-            if (this.desiredChipName != null && !this.desiredChipName.isEmpty()) {
-                throw new IllegalStateException("Couldn't find gpiochip with name: " + this.desiredChipName);
-            } else {
-                throw new IllegalStateException("Couldn't identify suitable gpiochip (no chip name specified and no 'pinctrl' chip found)!");
-            }
-        }
-
-        this.gpioChip = found;
-        logger.info("Using chip {} {}", this.gpioChip.getName(), this.gpioChip.getLabel());
+        initialize(null);
     }
 
     /**
@@ -140,9 +84,11 @@ public class GpioDContext implements Closeable {
         }
 
         // Set chip name from properties if available
-        String chipName = properties.get("gpio.chip.name");
-        if (chipName != null) {
-            setChip(chipName);
+        if (properties != null) {
+            String chipName = properties.get("gpio.chip.name");
+            if (chipName != null) {
+                setChip(chipName);
+            }
         }
 
         long chipIterPtr = GpioD.chipIterNew();
